@@ -1,0 +1,58 @@
+{
+  "name": "pdf-utils-rust",
+  "version": "0.1.0",
+  "description": "PDF and image processing utilities compiled to WebAssembly - Fast, secure, client-side file processing",
+  "main": "pkg/nodejs/pdf_utils_rust.js",
+  "module": "pkg/bundler/pdf_utils_rust.js",
+  "browser": "pkg/web/pdf_utils_rust.js",
+  "types": "pkg/nodejs/pdf_utils_rust.d.ts",
+  "sideEffects": [
+    "*.wasm"
+  ],
+  "files": [
+    "pkg/"
+  ],
+  "scripts": {
+    "build": "./build.sh",
+    "build:web": "wasm-pack build --target web --out-dir pkg/web",
+    "build:nodejs": "wasm-pack build --target nodejs --out-dir pkg/nodejs",
+    "build:bundler": "wasm-pack build --target bundler --out-dir pkg/bundler",
+    "serve": "python3 serve.py",
+    "test": "cargo test",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "pdf",
+    "image",
+    "wasm",
+    "webassembly",
+    "rust",
+    "converter",
+    "merge",
+    "split",
+    "pdf-merger",
+    "pdf-splitter",
+    "image-to-pdf",
+    "img2pdf",
+    "nextjs",
+    "react",
+    "vue",
+    "client-side",
+    "no-backend",
+    "file-processing",
+    "document-processing"
+  ],
+  "author": "Tongshisan <1195959825@qq.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Tongshisan/pdf-utils-rust.git"
+  },
+  "homepage": "https://github.com/Tongshisan/pdf-utils-rust#readme",
+  "bugs": {
+    "url": "https://github.com/Tongshisan/pdf-utils-rust/issues"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
