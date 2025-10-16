@@ -1,6 +1,6 @@
 {
   "name": "pdf-utils-rust",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "PDF and image processing utilities compiled to WebAssembly - Fast, secure, client-side file processing",
   "main": "pkg/nodejs/pdf_utils_rust.js",
   "module": "pkg/bundler/pdf_utils_rust.js",

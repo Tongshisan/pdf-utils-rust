@@ -208,7 +208,7 @@ pub fn split_pdf_by_range(pdf_bytes: &[u8], page_ranges: &str) -> Result<Vec<u8>
     Ok(buffer)
 }
 
-/// 深度复制对象及其引用（带ID映射）
+/// 深度复制对象及其引用（带ID映射，防止循环引用）
 fn deep_copy_object_with_map(
     src_doc: &Document,
     dst_doc: &mut Document,
@@ -224,11 +224,15 @@ fn deep_copy_object_with_map(
             
             // 复制引用的对象
             if let Ok(referenced_obj) = src_doc.get_object(*id) {
-                let copied_obj = deep_copy_object_with_map(src_doc, dst_doc, referenced_obj, id_map);
-                let new_id = dst_doc.add_object(copied_obj);
-                
-                // 记录ID映射
+                // 先创建占位符，防止循环引用导致无限递归
+                let new_id = dst_doc.new_object_id();
                 id_map.insert(*id, new_id);
+                
+                // 然后复制对象内容
+                let copied_obj = deep_copy_object_with_map(src_doc, dst_doc, referenced_obj, id_map);
+                
+                // 插入复制的对象
+                dst_doc.objects.insert(new_id, copied_obj);
                 
                 return Object::Reference(new_id);
             }
@@ -239,7 +243,8 @@ fn deep_copy_object_with_map(
         Object::Dictionary(dict) => {
             let mut new_dict = Dictionary::new();
             for (key, value) in dict.iter() {
-                new_dict.set(key.clone(), deep_copy_object_with_map(src_doc, dst_doc, value, id_map));
+                let copied_value = deep_copy_object_with_map(src_doc, dst_doc, value, id_map);
+                new_dict.set(key.clone(), copied_value);
             }
             Object::Dictionary(new_dict)
         }
@@ -252,7 +257,8 @@ fn deep_copy_object_with_map(
         Object::Stream(stream) => {
             let mut new_dict = Dictionary::new();
             for (key, value) in stream.dict.iter() {
-                new_dict.set(key.clone(), deep_copy_object_with_map(src_doc, dst_doc, value, id_map));
+                let copied_value = deep_copy_object_with_map(src_doc, dst_doc, value, id_map);
+                new_dict.set(key.clone(), copied_value);
             }
             Object::Stream(Stream::new(new_dict, stream.content.clone()))
         }
@@ -300,6 +306,77 @@ fn parse_page_ranges(ranges: &str, max_pages: usize) -> Result<Vec<usize>, Strin
     pages.sort_unstable();
     pages.dedup();
     Ok(pages)
+}
+
+/// 按页码范围分割成多个 PDF 文件
+/// page_ranges: 格式如 "1,3,5" 或 "1-2,4-5" 
+/// 返回多个独立的 PDF 文件数组
+#[wasm_bindgen]
+pub fn split_pdf_by_pages(pdf_bytes: &[u8], page_ranges: &str) -> Result<js_sys::Array, JsValue> {
+    // 加载 PDF 文档
+    let doc = Document::load_mem(pdf_bytes)
+        .map_err(|e| JsValue::from_str(&format!("无法加载 PDF: {}", e)))?;
+
+    // 解析页码范围
+    let pages_to_extract = parse_page_ranges(page_ranges, doc.get_pages().len())
+        .map_err(|e| JsValue::from_str(&e))?;
+
+    if pages_to_extract.is_empty() {
+        return Err(JsValue::from_str("没有可提取的页面"));
+    }
+
+    let result = js_sys::Array::new_with_length(pages_to_extract.len() as u32);
+    let all_pages: Vec<_> = doc.get_pages().into_iter().collect();
+
+    // 为每个页面创建独立的 PDF
+    for (output_idx, &page_idx) in pages_to_extract.iter().enumerate() {
+        if page_idx < all_pages.len() {
+            let (_page_num, page_id) = all_pages[page_idx];
+            
+            // 创建单页文档
+            let mut single_page_doc = Document::with_version("1.5");
+            let pages_id = single_page_doc.new_object_id();
+            let mut id_map: HashMap<ObjectId, ObjectId> = HashMap::new();
+            
+            // 深度复制页面对象
+            if let Ok(page_obj) = doc.get_object(page_id) {
+                let new_page_obj = deep_copy_object_with_map(&doc, &mut single_page_doc, page_obj, &mut id_map);
+                let new_page_id = single_page_doc.add_object(new_page_obj);
+                
+                id_map.insert(page_id, new_page_id);
+                
+                // 更新页面的父引用
+                if let Ok(Object::Dictionary(ref mut page_dict)) = single_page_doc.get_object_mut(new_page_id) {
+                    page_dict.set("Parent", Object::Reference(pages_id));
+                }
+                
+                // 创建页面树
+                let mut pages_dict = Dictionary::new();
+                pages_dict.set("Type", Object::Name(b"Pages".to_vec()));
+                pages_dict.set("Count", Object::Integer(1));
+                pages_dict.set("Kids", Object::Array(vec![Object::Reference(new_page_id)]));
+                single_page_doc.objects.insert(pages_id, Object::Dictionary(pages_dict));
+                
+                // 创建目录
+                let mut catalog = Dictionary::new();
+                catalog.set("Type", Object::Name(b"Catalog".to_vec()));
+                catalog.set("Pages", Object::Reference(pages_id));
+                
+                let catalog_id = single_page_doc.add_object(Object::Dictionary(catalog));
+                single_page_doc.trailer.set("Root", Object::Reference(catalog_id));
+                
+                // 保存单页文档
+                let mut buffer = Vec::new();
+                single_page_doc.save_to(&mut buffer)
+                    .map_err(|e| JsValue::from_str(&format!("无法保存第 {} 页: {}", page_idx + 1, e)))?;
+                
+                let uint8_array = js_sys::Uint8Array::from(&buffer[..]);
+                result.set(output_idx as u32, JsValue::from(uint8_array));
+            }
+        }
+    }
+
+    Ok(result)
 }
 
 /// 获取 PDF 页数

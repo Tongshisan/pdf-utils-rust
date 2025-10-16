@@ -1,6 +1,6 @@
 [package]
 name = "pdf-utils-rust"
-version = "0.1.2"
+version = "0.1.4"
 edition = "2021"
 authors = ["Tongshisan <1195959825@qq.com>"]
 description = "PDF and image processing utilities compiled to WebAssembly"
