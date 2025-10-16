@@ -1,0 +1,6 @@
+# wasm-pack 配置文件
+# 这将确保生成的 package.json 使用正确的包名
+
+[package]
+name = "@tongshisan/pdf-utils-rust"
+

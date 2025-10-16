@@ -1,6 +1,6 @@
 [package]
 name = "pdf-utils-rust"
-version = "0.1.0"
+version = "0.1.2"
 edition = "2021"
 authors = ["Tongshisan <1195959825@qq.com>"]
 description = "PDF and image processing utilities compiled to WebAssembly"
@@ -37,5 +37,8 @@ lto = true
 codegen-units = 1
 
 [package.metadata.wasm-pack.profile.release]
+wasm-opt = false
+
+[package.metadata.wasm-pack.profile.dev]
 wasm-opt = false
 
