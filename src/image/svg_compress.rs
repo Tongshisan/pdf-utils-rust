@@ -45,6 +45,19 @@ impl SvgCompressOptions {
         }
     }
 
+    /// 创建安全选项（保守优化，不会破坏SVG）
+    #[wasm_bindgen]
+    pub fn safe() -> Self {
+        Self {
+            remove_comments: true,
+            remove_metadata: false,  // 不移除元数据
+            remove_editor_attrs: true,
+            minify_whitespace: true,
+            precision: 0,  // 不优化数字
+            remove_default_attrs: false,  // 不移除默认属性
+        }
+    }
+
     /// 设置是否移除注释
     #[wasm_bindgen]
     pub fn set_remove_comments(&mut self, value: bool) {
@@ -88,12 +101,11 @@ impl Default for SvgCompressOptions {
     }
 }
 
-/// 需要移除的元数据元素
+/// 需要移除的元数据元素（不包括 defs，defs 需要特殊处理）
 const METADATA_ELEMENTS: &[&str] = &[
     "metadata",
     "title",
     "desc",
-    "defs", // 如果为空则移除
 ];
 
 /// 编辑器相关的命名空间前缀
@@ -103,7 +115,6 @@ const EDITOR_PREFIXES: &[&str] = &[
     "sketch:",
     "illustrator:",
     "adobe:",
-    "data-",
 ];
 
 /// 默认值属性（可以安全移除）
@@ -117,7 +128,6 @@ const DEFAULT_ATTRS: &[(&str, &str)] = &[
     ("stroke-linejoin", "miter"),
     ("stroke-miterlimit", "4"),
     ("stroke-dashoffset", "0"),
-    ("stroke-width", "1"),
     ("font-style", "normal"),
     ("font-weight", "normal"),
     ("text-decoration", "none"),
@@ -126,10 +136,48 @@ const DEFAULT_ATTRS: &[(&str, &str)] = &[
     ("overflow", "visible"),
 ];
 
+/// 可以安全优化数字的属性名
+const NUMERIC_ATTRS: &[&str] = &[
+    "d",
+    "points",
+    "viewBox",
+    "x",
+    "y",
+    "x1",
+    "y1",
+    "x2",
+    "y2",
+    "cx",
+    "cy",
+    "r",
+    "rx",
+    "ry",
+    "width",
+    "height",
+    "dx",
+    "dy",
+    "offset",
+    "stdDeviation",
+    "baseFrequency",
+];
+
+/// 不应该转义内容的元素
+const RAW_TEXT_ELEMENTS: &[&str] = &[
+    "style",
+    "script",
+];
+
 /// 压缩 SVG（使用默认选项）
 #[wasm_bindgen]
 pub fn compress_svg(svg_bytes: &[u8]) -> Result<Vec<u8>, JsValue> {
     let options = SvgCompressOptions::new();
+    compress_svg_with_options(svg_bytes, &options)
+}
+
+/// 压缩 SVG（使用安全选项，推荐用于可能有问题的 SVG）
+#[wasm_bindgen]
+pub fn compress_svg_safe(svg_bytes: &[u8]) -> Result<Vec<u8>, JsValue> {
+    let options = SvgCompressOptions::safe();
     compress_svg_with_options(svg_bytes, &options)
 }
 
@@ -156,7 +204,7 @@ pub fn compress_svg_with_options(
     }
 
     // 遍历并重建 SVG
-    build_optimized_svg(&doc.root(), &mut output, options, 0);
+    build_optimized_svg(&doc.root(), &mut output, options, 0, false);
 
     Ok(output.into_bytes())
 }
@@ -167,11 +215,12 @@ fn build_optimized_svg(
     output: &mut String,
     options: &SvgCompressOptions,
     depth: usize,
+    in_raw_text_element: bool,
 ) {
     match node.node_type() {
         roxmltree::NodeType::Root => {
             for child in node.children() {
-                build_optimized_svg(&child, output, options, depth);
+                build_optimized_svg(&child, output, options, depth, false);
             }
         }
         roxmltree::NodeType::Element => {
@@ -181,6 +230,9 @@ fn build_optimized_svg(
             if should_skip_element(node, options) {
                 return;
             }
+
+            // 检查是否是原始文本元素（style, script）
+            let is_raw_text = RAW_TEXT_ELEMENTS.contains(&tag_name);
 
             // 开始标签
             output.push('<');
@@ -202,27 +254,23 @@ fn build_optimized_svg(
 
                 output.push(' ');
                 
-                // 属性名
-                if let Some(prefix) = attr.namespace() {
-                    if let Some(p) = get_namespace_prefix(node, prefix) {
-                        output.push_str(p);
-                        output.push(':');
-                    }
-                }
-                output.push_str(attr.name());
+                // 属性名（包含前缀）
+                let attr_name = attr.name();
+                output.push_str(attr_name);
                 output.push_str("=\"");
                 
                 // 属性值（可能需要优化数字精度）
-                let value = if options.precision > 0 {
+                let value = if options.precision > 0 && should_optimize_numbers(attr_name) {
                     optimize_numbers(attr.value(), options.precision)
                 } else {
                     attr.value().to_string()
                 };
-                output.push_str(&escape_xml(&value));
+                output.push_str(&escape_xml_attr(&value));
                 output.push('"');
             }
 
-            // 处理命名空间声明（只在根元素上）
+            // 处理命名空间声明
+            // 在根元素或 svg 元素上输出所有命名空间
             if depth == 0 || tag_name == "svg" {
                 for ns in node.namespaces() {
                     if let Some(prefix) = ns.name() {
@@ -237,12 +285,12 @@ fn build_optimized_svg(
                         output.push_str(" xmlns:");
                         output.push_str(prefix);
                         output.push_str("=\"");
-                        output.push_str(ns.uri());
+                        output.push_str(&escape_xml_attr(ns.uri()));
                         output.push('"');
                     } else {
                         // 默认命名空间
                         output.push_str(" xmlns=\"");
-                        output.push_str(ns.uri());
+                        output.push_str(&escape_xml_attr(ns.uri()));
                         output.push('"');
                     }
                 }
@@ -255,7 +303,7 @@ fn build_optimized_svg(
                 output.push('>');
                 
                 for child in node.children() {
-                    build_optimized_svg(&child, output, options, depth + 1);
+                    build_optimized_svg(&child, output, options, depth + 1, is_raw_text);
                 }
 
                 output.push_str("</");
@@ -273,14 +321,28 @@ fn build_optimized_svg(
         }
         roxmltree::NodeType::Text => {
             let text = node.text().unwrap_or("");
-            if options.minify_whitespace {
-                // 压缩空白，但保留非空白文本
-                let trimmed = text.trim();
-                if !trimmed.is_empty() {
-                    output.push_str(&escape_xml(trimmed));
+            
+            // 对于 style/script 元素内的文本，不进行转义
+            if in_raw_text_element {
+                if options.minify_whitespace {
+                    // 对 CSS/JS 只做基本的空白压缩
+                    let trimmed = text.trim();
+                    if !trimmed.is_empty() {
+                        output.push_str(trimmed);
+                    }
+                } else {
+                    output.push_str(text);
                 }
             } else {
-                output.push_str(&escape_xml(text));
+                if options.minify_whitespace {
+                    // 压缩空白，但保留非空白文本
+                    let trimmed = text.trim();
+                    if !trimmed.is_empty() {
+                        output.push_str(&escape_xml_text(trimmed));
+                    }
+                } else {
+                    output.push_str(&escape_xml_text(text));
+                }
             }
         }
         roxmltree::NodeType::Comment => {
@@ -291,8 +353,10 @@ fn build_optimized_svg(
             }
         }
         roxmltree::NodeType::PI => {
-            // 处理指令（如 <?xml-stylesheet ...?>）
-            // 保留这些，因为它们可能是必要的
+            // 保留处理指令（如 <?xml-stylesheet ...?>）
+            // roxmltree 的 PI 节点 target 和 content 需要通过其他方式获取
+            // 由于 roxmltree 限制，我们跳过非 xml 声明的 PI
+            // 这里简化处理，大多数 SVG 不需要 PI
         }
     }
 }
@@ -302,14 +366,8 @@ fn should_skip_element(node: &roxmltree::Node, options: &SvgCompressOptions) -> 
     let tag_name = node.tag_name().name();
     
     // 检查元数据元素
-    if options.remove_metadata {
-        if METADATA_ELEMENTS.contains(&tag_name) {
-            // 对于 defs，只有当它为空时才跳过
-            if tag_name == "defs" {
-                return !node.has_children();
-            }
-            return true;
-        }
+    if options.remove_metadata && METADATA_ELEMENTS.contains(&tag_name) {
+        return true;
     }
 
     // 检查编辑器特定元素
@@ -350,6 +408,10 @@ fn should_skip_attribute(attr: &roxmltree::Attribute, options: &SvgCompressOptio
                 return true;
             }
         }
+        // 也检查 data- 属性（通常是编辑器添加的）
+        if name.starts_with("data-") {
+            return true;
+        }
     }
 
     // 检查默认值属性
@@ -387,21 +449,45 @@ fn get_namespace_prefix<'a>(node: &'a roxmltree::Node, uri: &str) -> Option<&'a 
         .and_then(|ns| ns.name())
 }
 
-/// 优化数字精度
+/// 检查属性是否应该优化数字
+fn should_optimize_numbers(attr_name: &str) -> bool {
+    NUMERIC_ATTRS.contains(&attr_name)
+}
+
+/// 优化数字精度（只对确定是数字的值进行优化）
 fn optimize_numbers(value: &str, precision: u8) -> String {
-    // 使用正则表达式替换数字（简化实现）
     let mut result = String::with_capacity(value.len());
     let mut chars = value.chars().peekable();
     
     while let Some(c) = chars.next() {
-        if c.is_ascii_digit() || c == '-' || c == '.' {
+        // 只有当遇到数字开头或者负号后跟数字时才尝试解析
+        let is_number_start = c.is_ascii_digit() 
+            || (c == '-' && chars.peek().map_or(false, |next| next.is_ascii_digit() || *next == '.'))
+            || (c == '.' && chars.peek().map_or(false, |next| next.is_ascii_digit()));
+        
+        if is_number_start {
             // 收集数字
             let mut num_str = String::new();
             num_str.push(c);
             
+            let mut has_dot = c == '.';
+            let mut has_e = false;
+            
             while let Some(&next) = chars.peek() {
-                if next.is_ascii_digit() || next == '.' || next == 'e' || next == 'E' || next == '-' || next == '+' {
+                if next.is_ascii_digit() {
                     num_str.push(chars.next().unwrap());
+                } else if next == '.' && !has_dot && !has_e {
+                    has_dot = true;
+                    num_str.push(chars.next().unwrap());
+                } else if (next == 'e' || next == 'E') && !has_e {
+                    has_e = true;
+                    num_str.push(chars.next().unwrap());
+                    // e 后面可能有 + 或 -
+                    if let Some(&sign) = chars.peek() {
+                        if sign == '+' || sign == '-' {
+                            num_str.push(chars.next().unwrap());
+                        }
+                    }
                 } else {
                     break;
                 }
@@ -424,8 +510,8 @@ fn optimize_numbers(value: &str, precision: u8) -> String {
     result
 }
 
-/// 转义 XML 特殊字符
-fn escape_xml(s: &str) -> String {
+/// 转义 XML 属性值中的特殊字符
+fn escape_xml_attr(s: &str) -> String {
     let mut result = String::with_capacity(s.len());
     for c in s.chars() {
         match c {
@@ -433,7 +519,20 @@ fn escape_xml(s: &str) -> String {
             '<' => result.push_str("&lt;"),
             '>' => result.push_str("&gt;"),
             '"' => result.push_str("&quot;"),
-            '\'' => result.push_str("&apos;"),
+            _ => result.push(c),
+        }
+    }
+    result
+}
+
+/// 转义 XML 文本内容中的特殊字符
+fn escape_xml_text(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '&' => result.push_str("&amp;"),
+            '<' => result.push_str("&lt;"),
+            '>' => result.push_str("&gt;"),
             _ => result.push(c),
         }
     }
@@ -461,4 +560,3 @@ pub fn get_svg_compress_stats(original: &[u8], compressed: &[u8]) -> Result<Stri
         original_size, compressed_size, saved, ratio
     ))
 }
-

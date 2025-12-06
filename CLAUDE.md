@@ -71,7 +71,8 @@ examples/               # 使用示例 (HTML)
 1. 在对应模块目录下创建新的 `.rs` 文件 (如 `src/image/flip.rs`)
 2. 在文件中实现功能并使用 `#[wasm_bindgen]` 导出函数
 3. 在 `mod.rs` 中添加 `mod flip;` 和 `pub use flip::*;`
-4. 重新构建: `wasm-pack build --target web`
+4. 添加使用说明文档
+5. 重新构建: `wasm-pack build --target web`
 
 ## 架构
 
