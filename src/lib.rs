@@ -1,11 +1,11 @@
 use wasm_bindgen::prelude::*;
 use std::panic;
 
-mod pdf_utils;
-mod image_utils;
+mod pdf;
+mod image;
 
-pub use pdf_utils::*;
-pub use image_utils::*;
+pub use pdf::*;
+pub use image::*;
 
 // 初始化函数，设置 panic hook 以便在浏览器控制台中看到 Rust 的 panic 信息
 #[wasm_bindgen(start)]
@@ -23,4 +23,3 @@ extern "C" {
 macro_rules! console_log {
     ($($t:tt)*) => (log(&format_args!($($t)*).to_string()))
 }
-

@@ -20,6 +20,7 @@
 - 🔄 **图片旋转** - 旋转图片 90°、180° 或 270°
 - ✂️ **图片裁剪** - 裁剪图片的指定区域
 - ℹ️ **图片信息** - 获取图片的详细信息（尺寸、格式、颜色类型等）
+- 🧹 **水印去除** - 智能去除图片水印（支持区域修复、颜色过滤、淡化等方法）
 
 ## 🚀 快速开始
 
@@ -104,46 +105,76 @@ http://localhost:8000/examples/index.html
 ### 在 JavaScript 中使用
 
 ```javascript
-import init, * as wasm from "./pkg/web/pdf_utils_rust.js";
+import init, * as wasm from './pkg/web/pdf_utils_rust.js';
 
 async function main() {
-  // 初始化 WASM 模块
-  await init();
+	// 初始化 WASM 模块
+	await init();
 
-  // PDF 合并
-  const pdf1 = new Uint8Array(await file1.arrayBuffer());
-  const pdf2 = new Uint8Array(await file2.arrayBuffer());
-  const merged = wasm.merge_pdfs([pdf1, pdf2]);
+	// PDF 合并
+	const pdf1 = new Uint8Array(await file1.arrayBuffer());
+	const pdf2 = new Uint8Array(await file2.arrayBuffer());
+	const merged = wasm.merge_pdfs([pdf1, pdf2]);
 
-  // PDF 分割
-  const pages = wasm.split_pdf(pdfBytes);
+	// PDF 分割
+	const pages = wasm.split_pdf(pdfBytes);
 
-  // 图片转 PDF
-  const img1 = new Uint8Array(await image1.arrayBuffer());
-  const img2 = new Uint8Array(await image2.arrayBuffer());
-  const pdf = wasm.images_to_pdf([img1, img2]);
+	// 图片转 PDF
+	const img1 = new Uint8Array(await image1.arrayBuffer());
+	const img2 = new Uint8Array(await image2.arrayBuffer());
+	const pdf = wasm.images_to_pdf([img1, img2]);
 
-  // 图片格式转换
-  const converted = wasm.convert_image_format(imageBytes, "png", 85);
+	// 图片格式转换
+	const converted = wasm.convert_image_format(imageBytes, 'png', 85);
 
-  // 调整图片大小
-  const resized = wasm.resize_image(imageBytes, 800, 600, true);
+	// 调整图片大小
+	const resized = wasm.resize_image(imageBytes, 800, 600, true);
 
-  // 压缩图片
-  const compressed = wasm.compress_image(imageBytes, 75);
+	// 压缩图片
+	const compressed = wasm.compress_image(imageBytes, 75);
 
-  // 旋转图片
-  const rotated = wasm.rotate_image(imageBytes, 90);
+	// 旋转图片
+	const rotated = wasm.rotate_image(imageBytes, 90);
 
-  // 裁剪图片
-  const cropped = wasm.crop_image(imageBytes, 100, 100, 400, 300);
+	// 裁剪图片
+	const cropped = wasm.crop_image(imageBytes, 100, 100, 400, 300);
 
-  // 获取图片信息
-  const info = JSON.parse(wasm.get_image_info(imageBytes));
-  console.log(info); // { width, height, format, color_type }
+	// 获取图片信息
+	const info = JSON.parse(wasm.get_image_info(imageBytes));
+	console.log(info); // { width, height, format, color_type }
 
-  // 获取 PDF 页数
-  const pageCount = wasm.get_pdf_page_count(pdfBytes);
+	// 去除图片水印 - 区域修复方法
+	const removedByRegion = wasm.remove_watermark_by_region(
+		imageBytes,
+		100, // x 坐标
+		100, // y 坐标
+		200, // 宽度
+		100, // 高度
+		'average' // 方法: average, blur, median
+	);
+
+	// 去除图片水印 - 颜色过滤方法
+	const removedByColor = wasm.remove_watermark_by_color(
+		imageBytes,
+		200, // 目标红色值
+		200, // 目标绿色值
+		200, // 目标蓝色值
+		30, // 容差
+		true // 是否用白色替换
+	);
+
+	// 淡化水印
+	const faded = wasm.fade_watermark(
+		imageBytes,
+		100, // x 坐标
+		100, // y 坐标
+		200, // 宽度
+		100, // 高度
+		50 // 亮度增加值
+	);
+
+	// 获取 PDF 页数
+	const pageCount = wasm.get_pdf_page_count(pdfBytes);
 }
 
 main();
@@ -152,28 +183,28 @@ main();
 ### 在 Node.js 中使用
 
 ```javascript
-const fs = require("fs");
-const wasm = require("pdf-utils-rust");
+const fs = require('fs');
+const wasm = require('pdf-utils-rust');
 
 // 读取 PDF 文件
-const pdf1 = fs.readFileSync("file1.pdf");
-const pdf2 = fs.readFileSync("file2.pdf");
+const pdf1 = fs.readFileSync('file1.pdf');
+const pdf2 = fs.readFileSync('file2.pdf');
 
 // 合并 PDF
 const merged = wasm.merge_pdfs([pdf1, pdf2]);
-fs.writeFileSync("merged.pdf", merged);
+fs.writeFileSync('merged.pdf', merged);
 
 // 分割 PDF
 const pages = wasm.split_pdf(pdf1);
 pages.forEach((page, index) => {
-  fs.writeFileSync(`page_${index + 1}.pdf`, page);
+	fs.writeFileSync(`page_${index + 1}.pdf`, page);
 });
 
 // 图片转 PDF
-const img1 = fs.readFileSync("image1.jpg");
-const img2 = fs.readFileSync("image2.jpg");
+const img1 = fs.readFileSync('image1.jpg');
+const img2 = fs.readFileSync('image2.jpg');
 const pdf = wasm.images_to_pdf([img1, img2]);
-fs.writeFileSync("images.pdf", pdf);
+fs.writeFileSync('images.pdf', pdf);
 ```
 
 ### 在 Next.js 中使用
@@ -194,122 +225,122 @@ pnpm add pdf-utils-rust
 
 ```tsx
 // app/components/PdfTools.tsx
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import * as wasm from "pdf-utils-rust";
+import { useState, useEffect } from 'react';
+import * as wasm from 'pdf-utils-rust';
 
 export default function PdfTools() {
-  const [wasmLoaded, setWasmLoaded] = useState(false);
-  const [processing, setProcessing] = useState(false);
+	const [wasmLoaded, setWasmLoaded] = useState(false);
+	const [processing, setProcessing] = useState(false);
 
-  useEffect(() => {
-    // 在客户端初始化 WASM
-    wasm
-      .default()
-      .then(() => {
-        setWasmLoaded(true);
-        console.log("✅ WASM 模块加载成功");
-      })
-      .catch((err) => {
-        console.error("❌ WASM 加载失败:", err);
-      });
-  }, []);
+	useEffect(() => {
+		// 在客户端初始化 WASM
+		wasm
+			.default()
+			.then(() => {
+				setWasmLoaded(true);
+				console.log('✅ WASM 模块加载成功');
+			})
+			.catch((err) => {
+				console.error('❌ WASM 加载失败:', err);
+			});
+	}, []);
 
-  const handleMergePdfs = async (files: FileList) => {
-    if (!wasmLoaded || files.length < 2) return;
+	const handleMergePdfs = async (files: FileList) => {
+		if (!wasmLoaded || files.length < 2) return;
 
-    setProcessing(true);
-    try {
-      const pdfArrays = [];
-      for (let i = 0; i < files.length; i++) {
-        const buffer = await files[i].arrayBuffer();
-        pdfArrays.push(new Uint8Array(buffer));
-      }
+		setProcessing(true);
+		try {
+			const pdfArrays = [];
+			for (let i = 0; i < files.length; i++) {
+				const buffer = await files[i].arrayBuffer();
+				pdfArrays.push(new Uint8Array(buffer));
+			}
 
-      const merged = wasm.merge_pdfs(pdfArrays);
+			const merged = wasm.merge_pdfs(pdfArrays);
 
-      // 下载合并后的 PDF
-      const blob = new Blob([merged], { type: "application/pdf" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "merged.pdf";
-      a.click();
-      URL.revokeObjectURL(url);
+			// 下载合并后的 PDF
+			const blob = new Blob([merged], { type: 'application/pdf' });
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = 'merged.pdf';
+			a.click();
+			URL.revokeObjectURL(url);
 
-      alert("✅ PDF 合并成功！");
-    } catch (error) {
-      console.error("错误:", error);
-      alert("❌ 处理失败: " + error);
-    } finally {
-      setProcessing(false);
-    }
-  };
+			alert('✅ PDF 合并成功！');
+		} catch (error) {
+			console.error('错误:', error);
+			alert('❌ 处理失败: ' + error);
+		} finally {
+			setProcessing(false);
+		}
+	};
 
-  const handleImageToPdf = async (files: FileList) => {
-    if (!wasmLoaded || files.length < 1) return;
+	const handleImageToPdf = async (files: FileList) => {
+		if (!wasmLoaded || files.length < 1) return;
 
-    setProcessing(true);
-    try {
-      const imageArrays = [];
-      for (let i = 0; i < files.length; i++) {
-        const buffer = await files[i].arrayBuffer();
-        imageArrays.push(new Uint8Array(buffer));
-      }
+		setProcessing(true);
+		try {
+			const imageArrays = [];
+			for (let i = 0; i < files.length; i++) {
+				const buffer = await files[i].arrayBuffer();
+				imageArrays.push(new Uint8Array(buffer));
+			}
 
-      const pdf = wasm.images_to_pdf(imageArrays);
+			const pdf = wasm.images_to_pdf(imageArrays);
 
-      const blob = new Blob([pdf], { type: "application/pdf" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "images.pdf";
-      a.click();
-      URL.revokeObjectURL(url);
+			const blob = new Blob([pdf], { type: 'application/pdf' });
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = 'images.pdf';
+			a.click();
+			URL.revokeObjectURL(url);
 
-      alert("✅ 图片转 PDF 成功！");
-    } catch (error) {
-      console.error("错误:", error);
-      alert("❌ 处理失败: " + error);
-    } finally {
-      setProcessing(false);
-    }
-  };
+			alert('✅ 图片转 PDF 成功！');
+		} catch (error) {
+			console.error('错误:', error);
+			alert('❌ 处理失败: ' + error);
+		} finally {
+			setProcessing(false);
+		}
+	};
 
-  if (!wasmLoaded) {
-    return <div>正在加载 WASM 模块...</div>;
-  }
+	if (!wasmLoaded) {
+		return <div>正在加载 WASM 模块...</div>;
+	}
 
-  return (
-    <div className="space-y-6">
-      <div className="card">
-        <h2 className="text-xl font-bold mb-4">PDF 合并</h2>
-        <input
-          type="file"
-          multiple
-          accept=".pdf"
-          onChange={(e) => e.target.files && handleMergePdfs(e.target.files)}
-          disabled={processing}
-          className="file-input"
-        />
-      </div>
+	return (
+		<div className="space-y-6">
+			<div className="card">
+				<h2 className="text-xl font-bold mb-4">PDF 合并</h2>
+				<input
+					type="file"
+					multiple
+					accept=".pdf"
+					onChange={(e) => e.target.files && handleMergePdfs(e.target.files)}
+					disabled={processing}
+					className="file-input"
+				/>
+			</div>
 
-      <div className="card">
-        <h2 className="text-xl font-bold mb-4">图片转 PDF</h2>
-        <input
-          type="file"
-          multiple
-          accept="image/*"
-          onChange={(e) => e.target.files && handleImageToPdf(e.target.files)}
-          disabled={processing}
-          className="file-input"
-        />
-      </div>
+			<div className="card">
+				<h2 className="text-xl font-bold mb-4">图片转 PDF</h2>
+				<input
+					type="file"
+					multiple
+					accept="image/*"
+					onChange={(e) => e.target.files && handleImageToPdf(e.target.files)}
+					disabled={processing}
+					className="file-input"
+				/>
+			</div>
 
-      {processing && <div>处理中...</div>}
-    </div>
-  );
+			{processing && <div>处理中...</div>}
+		</div>
+	);
 }
 ```
 
@@ -317,15 +348,15 @@ export default function PdfTools() {
 
 ```tsx
 // app/page.tsx
-import PdfTools from "./components/PdfTools";
+import PdfTools from './components/PdfTools';
 
 export default function Home() {
-  return (
-    <main className="container mx-auto p-8">
-      <h1 className="text-3xl font-bold mb-8">PDF 工具</h1>
-      <PdfTools />
-    </main>
-  );
+	return (
+		<main className="container mx-auto p-8">
+			<h1 className="text-3xl font-bold mb-8">PDF 工具</h1>
+			<PdfTools />
+		</main>
+	);
 }
 ```
 
@@ -337,21 +368,21 @@ export default function Home() {
 // next.config.js
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  webpack: (config, { isServer }) => {
-    // 添加 WASM 支持
-    config.experiments = {
-      ...config.experiments,
-      asyncWebAssembly: true,
-    };
+	webpack: (config, { isServer }) => {
+		// 添加 WASM 支持
+		config.experiments = {
+			...config.experiments,
+			asyncWebAssembly: true,
+		};
 
-    // 确保 WASM 文件被正确处理
-    config.module.rules.push({
-      test: /\.wasm$/,
-      type: "webassembly/async",
-    });
+		// 确保 WASM 文件被正确处理
+		config.module.rules.push({
+			test: /\.wasm$/,
+			type: 'webassembly/async',
+		});
 
-    return config;
-  },
+		return config;
+	},
 };
 
 module.exports = nextConfig;
@@ -361,22 +392,22 @@ module.exports = nextConfig;
 
 ```tsx
 // pages/pdf-tools.tsx
-import { useState, useEffect } from "react";
-import type { NextPage } from "next";
-import dynamic from "next/dynamic";
+import { useState, useEffect } from 'react';
+import type { NextPage } from 'next';
+import dynamic from 'next/dynamic';
 
 // 禁用 SSR 以避免 WASM 在服务器端加载
-const PdfToolsComponent = dynamic(() => import("../components/PdfTools"), {
-  ssr: false,
+const PdfToolsComponent = dynamic(() => import('../components/PdfTools'), {
+	ssr: false,
 });
 
 const PdfToolsPage: NextPage = () => {
-  return (
-    <div className="container">
-      <h1>PDF 工具</h1>
-      <PdfToolsComponent />
-    </div>
-  );
+	return (
+		<div className="container">
+			<h1>PDF 工具</h1>
+			<PdfToolsComponent />
+		</div>
+	);
 };
 
 export default PdfToolsPage;
@@ -387,7 +418,7 @@ export default PdfToolsPage;
 包已经包含了 TypeScript 类型定义，可以直接使用：
 
 ```typescript
-import * as wasm from "pdf-utils-rust";
+import * as wasm from 'pdf-utils-rust';
 
 // 类型会自动推断
 const mergePdfs: (pdfs: Uint8Array[]) => Uint8Array = wasm.merge_pdfs;
@@ -398,161 +429,161 @@ const splitPdf: (pdf: Uint8Array) => Uint8Array[] = wasm.split_pdf;
 
 ```tsx
 // components/PdfProcessor.tsx
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import * as wasm from "pdf-utils-rust";
+import { useState, useEffect } from 'react';
+import * as wasm from 'pdf-utils-rust';
 
-type ProcessingState = "idle" | "loading" | "processing" | "success" | "error";
+type ProcessingState = 'idle' | 'loading' | 'processing' | 'success' | 'error';
 
 export default function PdfProcessor() {
-  const [wasmLoaded, setWasmLoaded] = useState(false);
-  const [state, setState] = useState<ProcessingState>("loading");
-  const [message, setMessage] = useState("");
+	const [wasmLoaded, setWasmLoaded] = useState(false);
+	const [state, setState] = useState<ProcessingState>('loading');
+	const [message, setMessage] = useState('');
 
-  useEffect(() => {
-    wasm
-      .default()
-      .then(() => {
-        setWasmLoaded(true);
-        setState("idle");
-      })
-      .catch((err) => {
-        console.error("WASM 加载失败:", err);
-        setState("error");
-        setMessage("WASM 模块加载失败");
-      });
-  }, []);
+	useEffect(() => {
+		wasm
+			.default()
+			.then(() => {
+				setWasmLoaded(true);
+				setState('idle');
+			})
+			.catch((err) => {
+				console.error('WASM 加载失败:', err);
+				setState('error');
+				setMessage('WASM 模块加载失败');
+			});
+	}, []);
 
-  const downloadFile = (data: Uint8Array, filename: string, type: string) => {
-    const blob = new Blob([data], { type });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
+	const downloadFile = (data: Uint8Array, filename: string, type: string) => {
+		const blob = new Blob([data], { type });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = filename;
+		document.body.appendChild(a);
+		a.click();
+		document.body.removeChild(a);
+		URL.revokeObjectURL(url);
+	};
 
-  const processPdfs = async (
-    files: FileList,
-    operation: "merge" | "split" | "img2pdf"
-  ) => {
-    if (!wasmLoaded) return;
+	const processPdfs = async (
+		files: FileList,
+		operation: 'merge' | 'split' | 'img2pdf'
+	) => {
+		if (!wasmLoaded) return;
 
-    setState("processing");
-    setMessage("处理中...");
+		setState('processing');
+		setMessage('处理中...');
 
-    try {
-      const fileArrays = [];
-      for (let i = 0; i < files.length; i++) {
-        const buffer = await files[i].arrayBuffer();
-        fileArrays.push(new Uint8Array(buffer));
-      }
+		try {
+			const fileArrays = [];
+			for (let i = 0; i < files.length; i++) {
+				const buffer = await files[i].arrayBuffer();
+				fileArrays.push(new Uint8Array(buffer));
+			}
 
-      switch (operation) {
-        case "merge":
-          const merged = wasm.merge_pdfs(fileArrays);
-          downloadFile(merged, "merged.pdf", "application/pdf");
-          setMessage(`✅ 成功合并 ${files.length} 个 PDF 文件`);
-          break;
+			switch (operation) {
+				case 'merge':
+					const merged = wasm.merge_pdfs(fileArrays);
+					downloadFile(merged, 'merged.pdf', 'application/pdf');
+					setMessage(`✅ 成功合并 ${files.length} 个 PDF 文件`);
+					break;
 
-        case "split":
-          const pages = wasm.split_pdf(fileArrays[0]);
-          pages.forEach((page: Uint8Array, index: number) => {
-            downloadFile(page, `page_${index + 1}.pdf`, "application/pdf");
-          });
-          setMessage(`✅ PDF 已分割为 ${pages.length} 个文件`);
-          break;
+				case 'split':
+					const pages = wasm.split_pdf(fileArrays[0]);
+					pages.forEach((page: Uint8Array, index: number) => {
+						downloadFile(page, `page_${index + 1}.pdf`, 'application/pdf');
+					});
+					setMessage(`✅ PDF 已分割为 ${pages.length} 个文件`);
+					break;
 
-        case "img2pdf":
-          const pdf = wasm.images_to_pdf(fileArrays);
-          downloadFile(pdf, "images.pdf", "application/pdf");
-          setMessage(`✅ ${files.length} 张图片已转换为 PDF`);
-          break;
-      }
+				case 'img2pdf':
+					const pdf = wasm.images_to_pdf(fileArrays);
+					downloadFile(pdf, 'images.pdf', 'application/pdf');
+					setMessage(`✅ ${files.length} 张图片已转换为 PDF`);
+					break;
+			}
 
-      setState("success");
-      setTimeout(() => setState("idle"), 3000);
-    } catch (error) {
-      console.error("处理失败:", error);
-      setState("error");
-      setMessage(`❌ 处理失败: ${error}`);
-    }
-  };
+			setState('success');
+			setTimeout(() => setState('idle'), 3000);
+		} catch (error) {
+			console.error('处理失败:', error);
+			setState('error');
+			setMessage(`❌ 处理失败: ${error}`);
+		}
+	};
 
-  if (state === "loading") {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-        <span className="ml-4">加载中...</span>
-      </div>
-    );
-  }
+	if (state === 'loading') {
+		return (
+			<div className="flex items-center justify-center p-8">
+				<div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+				<span className="ml-4">加载中...</span>
+			</div>
+		);
+	}
 
-  return (
-    <div className="max-w-4xl mx-auto p-6 space-y-6">
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-2xl font-bold mb-4">PDF 合并</h2>
-        <p className="text-gray-600 mb-4">选择多个 PDF 文件进行合并</p>
-        <input
-          type="file"
-          multiple
-          accept=".pdf"
-          onChange={(e) =>
-            e.target.files && processPdfs(e.target.files, "merge")
-          }
-          disabled={state === "processing"}
-          className="w-full p-2 border rounded"
-        />
-      </div>
+	return (
+		<div className="max-w-4xl mx-auto p-6 space-y-6">
+			<div className="bg-white rounded-lg shadow p-6">
+				<h2 className="text-2xl font-bold mb-4">PDF 合并</h2>
+				<p className="text-gray-600 mb-4">选择多个 PDF 文件进行合并</p>
+				<input
+					type="file"
+					multiple
+					accept=".pdf"
+					onChange={(e) =>
+						e.target.files && processPdfs(e.target.files, 'merge')
+					}
+					disabled={state === 'processing'}
+					className="w-full p-2 border rounded"
+				/>
+			</div>
 
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-2xl font-bold mb-4">PDF 分割</h2>
-        <p className="text-gray-600 mb-4">将 PDF 分割为单独的页面</p>
-        <input
-          type="file"
-          accept=".pdf"
-          onChange={(e) =>
-            e.target.files && processPdfs(e.target.files, "split")
-          }
-          disabled={state === "processing"}
-          className="w-full p-2 border rounded"
-        />
-      </div>
+			<div className="bg-white rounded-lg shadow p-6">
+				<h2 className="text-2xl font-bold mb-4">PDF 分割</h2>
+				<p className="text-gray-600 mb-4">将 PDF 分割为单独的页面</p>
+				<input
+					type="file"
+					accept=".pdf"
+					onChange={(e) =>
+						e.target.files && processPdfs(e.target.files, 'split')
+					}
+					disabled={state === 'processing'}
+					className="w-full p-2 border rounded"
+				/>
+			</div>
 
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-2xl font-bold mb-4">图片转 PDF</h2>
-        <p className="text-gray-600 mb-4">将多张图片合并为一个 PDF</p>
-        <input
-          type="file"
-          multiple
-          accept="image/*"
-          onChange={(e) =>
-            e.target.files && processPdfs(e.target.files, "img2pdf")
-          }
-          disabled={state === "processing"}
-          className="w-full p-2 border rounded"
-        />
-      </div>
+			<div className="bg-white rounded-lg shadow p-6">
+				<h2 className="text-2xl font-bold mb-4">图片转 PDF</h2>
+				<p className="text-gray-600 mb-4">将多张图片合并为一个 PDF</p>
+				<input
+					type="file"
+					multiple
+					accept="image/*"
+					onChange={(e) =>
+						e.target.files && processPdfs(e.target.files, 'img2pdf')
+					}
+					disabled={state === 'processing'}
+					className="w-full p-2 border rounded"
+				/>
+			</div>
 
-      {message && (
-        <div
-          className={`p-4 rounded ${
-            state === "success"
-              ? "bg-green-100 text-green-800"
-              : state === "error"
-              ? "bg-red-100 text-red-800"
-              : "bg-blue-100 text-blue-800"
-          }`}
-        >
-          {message}
-        </div>
-      )}
-    </div>
-  );
+			{message && (
+				<div
+					className={`p-4 rounded ${
+						state === 'success'
+							? 'bg-green-100 text-green-800'
+							: state === 'error'
+							? 'bg-red-100 text-red-800'
+							: 'bg-blue-100 text-blue-800'
+					}`}
+				>
+					{message}
+				</div>
+			)}
+		</div>
+	);
 }
 ```
 
@@ -670,6 +701,48 @@ export default function PdfProcessor() {
 
 - **参数**: 图片字节数组
 - **返回**: JSON 字符串，包含 width, height, format, color_type
+
+#### `remove_watermark_by_region(image_bytes: &[u8], x: u32, y: u32, width: u32, height: u32, method: &str) -> Vec<u8>`
+
+基于区域修复去除水印。
+
+- **参数**:
+  - `image_bytes`: 图片字节数组
+  - `x`: 水印区域 x 坐标
+  - `y`: 水印区域 y 坐标
+  - `width`: 水印区域宽度
+  - `height`: 水印区域高度
+  - `method`: 修复方法
+    - `"average"`: 使用周围像素平均值填充（适合纯色背景）
+    - `"blur"`: 使用模糊处理（适合复杂背景）
+    - `"median"`: 使用中值滤波（适合去除噪点）
+- **返回**: 处理后的图片字节数组
+
+#### `remove_watermark_by_color(image_bytes: &[u8], target_r: u8, target_g: u8, target_b: u8, tolerance: u8, replace_with_white: bool) -> Vec<u8>`
+
+基于颜色过滤去除水印。
+
+- **参数**:
+  - `image_bytes`: 图片字节数组
+  - `target_r`: 目标红色值 (0-255)
+  - `target_g`: 目标绿色值 (0-255)
+  - `target_b`: 目标蓝色值 (0-255)
+  - `tolerance`: 颜色容差 (0-100)
+  - `replace_with_white`: 是否用白色替换（false 则使用周围像素平均值）
+- **返回**: 处理后的图片字节数组
+
+#### `fade_watermark(image_bytes: &[u8], x: u32, y: u32, width: u32, height: u32, brightness_increase: i32) -> Vec<u8>`
+
+淡化水印（通过增加亮度）。
+
+- **参数**:
+  - `image_bytes`: 图片字节数组
+  - `x`: 水印区域 x 坐标
+  - `y`: 水印区域 y 坐标
+  - `width`: 水印区域宽度
+  - `height`: 水印区域高度
+  - `brightness_increase`: 亮度增加值 (建议 0-150)
+- **返回**: 处理后的图片字节数组
 
 ## 🛠️ 技术栈
 

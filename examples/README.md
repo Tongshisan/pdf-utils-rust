@@ -33,6 +33,7 @@ php -S localhost:8000
 
 ```
 http://localhost:8000/examples/index.html
+http://localhost:8000/examples/watermark-remover.html  (水印去除专用工具)
 ```
 
 ## 示例说明
@@ -50,12 +51,43 @@ http://localhost:8000/examples/index.html
 7. **旋转图片** - 旋转图片
 8. **图片信息** - 查看图片详细信息
 
+### watermark-remover.html
+
+专门的水印去除工具，提供三种去除方法：
+
+1. **区域修复** - 指定水印位置，使用智能算法修复
+
+   - 平均值填充（适合纯色背景）
+   - 模糊处理（适合复杂背景）
+   - 中值滤波（适合去除噪点）
+
+2. **颜色过滤** - 去除特定颜色的水印
+
+   - 支持 RGB 颜色选择
+   - 可调节容差范围
+   - 可选择填充方式（白色或周围像素）
+
+3. **淡化水印** - 通过增加亮度减轻水印
+   - 适合深色水印
+   - 可调节亮度增加值
+   - 对图片质量影响最小
+
+**使用方法**：
+
+- 上传带水印的图片
+- 选择合适的去除方法
+- 调整参数
+- 实时预览效果
+- 下载处理后的图片
+
+详细使用说明请查看 [WATERMARK_REMOVAL_CN.md](../WATERMARK_REMOVAL_CN.md)
+
 ## 自定义使用
 
 你可以参考 `index.html` 中的代码，在自己的项目中集成这些功能：
 
 ```javascript
-import init, * as wasm from "../pkg/web/pdf_utils_rust.js";
+import init, * as wasm from '../pkg/web/pdf_utils_rust.js';
 
 // 初始化 WASM 模块
 await init();
